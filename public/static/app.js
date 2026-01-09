@@ -144,6 +144,10 @@ function renderLayout() {
               <i class="fas fa-won-sign w-6"></i>
               <span>입금 관리</span>
             </button>
+            <button onclick="navigateTo('admissions')" class="nav-item w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 flex items-center ${state.currentView === 'admissions' ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}">
+              <i class="fas fa-hospital-user w-6"></i>
+              <span>원무업무 통합</span>
+            </button>
           </nav>
         </aside>
 
@@ -652,6 +656,9 @@ function navigateTo(view) {
     case 'payments':
       renderPayments()
       break
+    case 'admissions':
+      renderAdmissions()
+      break
   }
 }
 
@@ -834,6 +841,239 @@ function showIntegrationDetail(responseData) {
     </div>
   `
   document.body.appendChild(modal)
+}
+
+// 원무업무 통합 페이지 렌더링
+async function renderAdmissions() {
+  try {
+    const patients = await api.get('/patients')
+    const claims = await api.get('/claims')
+    const stats = await api.get('/dashboard/stats')
+    
+    // 오늘 접수한 환자 (샘플 데이터로 당일 생성된 환자)
+    const today = new Date().toISOString().slice(0, 10)
+    const todayPatients = patients.data.filter(p => p.created_at?.startsWith(today))
+    
+    // 오늘 수납 (당일 생성된 명세서)
+    const todayClaims = claims.data.filter(c => c.created_at?.startsWith(today))
+    const todayRevenue = todayClaims.reduce((sum, c) => sum + (c.total_amount || 0), 0)
+    
+    // 대기 환자 (작성중 명세서)
+    const waitingClaims = claims.data.filter(c => c.status === '작성중')
+    
+    document.getElementById('content').innerHTML = `
+      <div>
+        <h2 class="text-3xl font-bold text-gray-900 mb-6">
+          <i class="fas fa-hospital-user text-blue-600 mr-2"></i>
+          원무업무 통합
+        </h2>
+        
+        <!-- 주요 통계 카드 -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div class="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-blue-100 text-sm">오늘 접수</p>
+                <p class="text-4xl font-bold">${todayPatients.length}</p>
+                <p class="text-blue-100 text-xs mt-1">명</p>
+              </div>
+              <div class="bg-white bg-opacity-20 rounded-full p-4">
+                <i class="fas fa-user-plus text-3xl"></i>
+              </div>
+            </div>
+          </div>
+          
+          <div class="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-green-100 text-sm">오늘 수납</p>
+                <p class="text-4xl font-bold">${todayClaims.length}</p>
+                <p class="text-green-100 text-xs mt-1">건</p>
+              </div>
+              <div class="bg-white bg-opacity-20 rounded-full p-4">
+                <i class="fas fa-cash-register text-3xl"></i>
+              </div>
+            </div>
+          </div>
+          
+          <div class="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-purple-100 text-sm">오늘 수납액</p>
+                <p class="text-3xl font-bold">${Math.floor(todayRevenue / 1000)}K</p>
+                <p class="text-purple-100 text-xs mt-1">원</p>
+              </div>
+              <div class="bg-white bg-opacity-20 rounded-full p-4">
+                <i class="fas fa-won-sign text-3xl"></i>
+              </div>
+            </div>
+          </div>
+          
+          <div class="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-orange-100 text-sm">대기 환자</p>
+                <p class="text-4xl font-bold">${waitingClaims.length}</p>
+                <p class="text-orange-100 text-xs mt-1">명</p>
+              </div>
+              <div class="bg-white bg-opacity-20 rounded-full p-4">
+                <i class="fas fa-hourglass-half text-3xl"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 빠른 작업 버튼 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <button onclick="navigateTo('patients')" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow">
+            <div class="flex items-center">
+              <div class="bg-blue-100 rounded-full p-4 mr-4">
+                <i class="fas fa-user-plus text-blue-600 text-2xl"></i>
+              </div>
+              <div class="text-left">
+                <h3 class="font-bold text-gray-900 text-lg">환자 접수</h3>
+                <p class="text-gray-500 text-sm">신규 환자 등록 및 자격조회</p>
+              </div>
+            </div>
+          </button>
+          
+          <button onclick="navigateTo('claims')" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow">
+            <div class="flex items-center">
+              <div class="bg-green-100 rounded-full p-4 mr-4">
+                <i class="fas fa-file-invoice-dollar text-green-600 text-2xl"></i>
+              </div>
+              <div class="text-left">
+                <h3 class="font-bold text-gray-900 text-lg">수납 처리</h3>
+                <p class="text-gray-500 text-sm">진료비 수납 및 명세서 발행</p>
+              </div>
+            </div>
+          </button>
+          
+          <button onclick="navigateTo('integrations')" class="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow">
+            <div class="flex items-center">
+              <div class="bg-purple-100 rounded-full p-4 mr-4">
+                <i class="fas fa-exchange-alt text-purple-600 text-2xl"></i>
+              </div>
+              <div class="text-left">
+                <h3 class="font-bold text-gray-900 text-lg">외부 연계</h3>
+                <p class="text-gray-500 text-sm">보험 자격조회 및 실손연계</p>
+              </div>
+            </div>
+          </button>
+        </div>
+        
+        <!-- 대기 환자 목록 -->
+        <div class="bg-white rounded-lg shadow mb-8">
+          <div class="border-b px-6 py-4">
+            <h3 class="text-lg font-bold text-gray-900">
+              <i class="fas fa-hourglass-half text-orange-600 mr-2"></i>
+              진료 대기 환자
+            </h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">환자번호</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">이름</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">진료일</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">진료과</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">담당의</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">상태</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">액션</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200">
+                ${waitingClaims.length === 0 ? `
+                  <tr>
+                    <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                      <i class="fas fa-inbox text-4xl mb-2"></i>
+                      <p>대기 중인 환자가 없습니다</p>
+                    </td>
+                  </tr>
+                ` : waitingClaims.map(claim => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 text-sm text-gray-900">${claim.patient_number || '-'}</td>
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900">${claim.patient_name}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">${formatDate(claim.visit_date)}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">${claim.department || '-'}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">${claim.doctor_name || '-'}</td>
+                    <td class="px-6 py-4">
+                      <span class="px-2 py-1 text-xs rounded-full ${getStatusColor(claim.status)}">
+                        ${claim.status}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 text-sm">
+                      <button onclick="viewClaimDetail(${claim.id})" class="text-blue-600 hover:text-blue-800 mr-2">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <!-- 오늘 수납 내역 -->
+        <div class="bg-white rounded-lg shadow">
+          <div class="border-b px-6 py-4">
+            <h3 class="text-lg font-bold text-gray-900">
+              <i class="fas fa-receipt text-green-600 mr-2"></i>
+              오늘 수납 내역
+            </h3>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">시간</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">청구번호</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">환자명</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">진단명</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">총액</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">본인부담</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">상태</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200">
+                ${todayClaims.length === 0 ? `
+                  <tr>
+                    <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                      <i class="fas fa-inbox text-4xl mb-2"></i>
+                      <p>오늘 수납 내역이 없습니다</p>
+                    </td>
+                  </tr>
+                ` : todayClaims.map(claim => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 text-sm text-gray-500">${new Date(claim.created_at).toLocaleTimeString('ko-KR', {hour: '2-digit', minute: '2-digit'})}</td>
+                    <td class="px-6 py-4 text-sm font-medium text-blue-600">${claim.claim_number}</td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${claim.patient_name}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">${claim.diagnosis_name || '-'}</td>
+                    <td class="px-6 py-4 text-sm text-gray-900 font-semibold">${formatCurrency(claim.total_amount)}</td>
+                    <td class="px-6 py-4 text-sm text-red-600 font-semibold">${formatCurrency(claim.copay_amount)}</td>
+                    <td class="px-6 py-4">
+                      <span class="px-2 py-1 text-xs rounded-full ${getStatusColor(claim.status)}">
+                        ${claim.status}
+                      </span>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `
+  } catch (error) {
+    console.error('Admissions render error:', error)
+    document.getElementById('content').innerHTML = `
+      <div class="text-center py-12">
+        <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
+        <p class="text-gray-600">데이터를 불러오는 중 오류가 발생했습니다.</p>
+      </div>
+    `
+  }
 }
 
 // 앱 초기화
