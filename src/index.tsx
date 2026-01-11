@@ -6,6 +6,7 @@ import claims from './routes/claims'
 import integrations from './routes/integrations'
 import payments from './routes/payments'
 import dashboard from './routes/dashboard'
+import postManagement from './routes/postManagement'
 import type { Bindings } from './types/bindings'
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -22,6 +23,7 @@ app.route('/api/claims', claims)
 app.route('/api/integrations', integrations)
 app.route('/api/payments', payments)
 app.route('/api/dashboard', dashboard)
+app.route('/api/post-management', postManagement)
 
 // 메인 페이지
 app.get('/', (c: any) => {

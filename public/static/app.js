@@ -148,6 +148,10 @@ function renderLayout() {
               <i class="fas fa-hospital-user w-6"></i>
               <span>원무업무 통합</span>
             </button>
+            <button onclick="navigateTo('postManagement')" class="nav-item w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 flex items-center ${state.currentView === 'postManagement' ? 'bg-blue-50 text-blue-600' : 'text-gray-700'}">
+              <i class="fas fa-clipboard-check w-6"></i>
+              <span>사후관리</span>
+            </button>
           </nav>
         </aside>
 
@@ -888,6 +892,11 @@ function navigateTo(view) {
     case 'admissions':
       renderAdmissions()
       break
+      renderAdmissions()
+      break
+    case 'postManagement':
+      renderPostManagement()
+      break
   }
 }
 
@@ -1559,6 +1568,374 @@ async function showAddItemModal(claimId) {
       console.error('Item addition error:', error)
     }
   })
+}
+
+
+// 사후관리 페이지 렌더링
+async function renderPostManagement() {
+  try {
+    const [supplementRequests, appeals] = await Promise.all([
+      api.get("/post-management/supplement-requests"),
+      api.get("/post-management/appeals")
+    ])
+    
+    document.getElementById("content").innerHTML = `
+      <div>
+        <h2 class="text-3xl font-bold text-gray-900 mb-6">
+          <i class="fas fa-clipboard-check text-blue-600 mr-2"></i>
+          사후관리
+        </h2>
+        
+        <div class="mb-6 border-b border-gray-200">
+          <nav class="-mb-px flex space-x-8">
+            <button onclick="showPostManagementTab("supplement")" class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-blue-600 border-blue-600">
+              보완 요청
+            </button>
+            <button onclick="showPostManagementTab("appeal")" class="tab-button py-4 px-1 border-b-2 font-medium text-sm text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300">
+              이의신청
+            </button>
+          </nav>
+        </div>
+        
+        <div id="supplementTab" class="tab-content">
+          <div class="mb-4 flex justify-between items-center">
+            <h3 class="text-xl font-semibold text-gray-900">보완 요청 목록</h3>
+            <button onclick="showSupplementRequestModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center">
+              <i class="fas fa-plus mr-2"></i>
+              보완 요청 등록
+            </button>
+          </div>
+          
+          <div class="bg-white rounded-lg shadow overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">청구번호</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">환자명</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">요청유형</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">요청사유</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">상태</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">요청일</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">액션</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                ${supplementRequests.data && supplementRequests.data.length > 0 ? supplementRequests.data.map(req => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${req.claim_number}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${req.patient_name || "-"}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${req.request_type}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">${req.request_reason.substring(0, 50)}${req.request_reason.length > 50 ? "..." : ""}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(req.status)}">
+                        ${req.status}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(req.requested_at)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                      <button onclick="viewSupplementRequest(${req.id})" class="text-blue-600 hover:text-blue-800 mr-2">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                      ${req.status === "요청" ? `
+                        <button onclick="processSupplementRequest(${req.id})" class="text-green-600 hover:text-green-800">
+                          <i class="fas fa-check"></i>
+                        </button>
+                      ` : ""}
+                    </td>
+                  </tr>
+                `).join("" ) : `
+                  <tr>
+                    <td colspan="7" class="px-6 py-8 text-center text-gray-500">
+                      <i class="fas fa-inbox text-4xl mb-2"></i>
+                      <p>보완 요청이 없습니다</p>
+                    </td>
+                  </tr>
+                `}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div id="appealTab" class="tab-content hidden">
+          <div class="mb-4 flex justify-between items-center">
+            <h3 class="text-xl font-semibold text-gray-900">이의신청 목록</h3>
+            <button onclick="showAppealModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center">
+              <i class="fas fa-plus mr-2"></i>
+              이의신청 등록
+            </button>
+          </div>
+          
+          <div class="bg-white rounded-lg shadow overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">청구번호</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">환자명</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">이의사유</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">상태</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">요청일</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">액션</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                ${appeals.data && appeals.data.length > 0 ? appeals.data.map(appeal => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${appeal.claim_number}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${appeal.patient_name || "-"}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">${appeal.request_reason.substring(0, 50)}${appeal.request_reason.length > 50 ? "..." : ""}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                      <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(appeal.status)}">
+                        ${appeal.status}
+                      </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(appeal.requested_at)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                      <button onclick="viewSupplementRequest(${appeal.id})" class="text-blue-600 hover:text-blue-800">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                    </td>
+                  </tr>
+                `).join("") : `
+                  <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                      <i class="fas fa-inbox text-4xl mb-2"></i>
+                      <p>이의신청이 없습니다</p>
+                    </td>
+                  </tr>
+                `}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `
+  } catch (error) {
+    console.error("Post management render error:", error)
+  }
+}
+
+// 탭 전환
+function showPostManagementTab(tab) {
+  document.querySelectorAll(".tab-content").forEach(el => el.classList.add("hidden"))
+  document.querySelectorAll(".tab-button").forEach(el => {
+    el.classList.remove("text-blue-600", "border-blue-600")
+    el.classList.add("text-gray-500", "border-transparent")
+  })
+  
+  if (tab === "supplement") {
+    document.getElementById("supplementTab").classList.remove("hidden")
+    document.querySelectorAll(".tab-button")[0].classList.add("text-blue-600", "border-blue-600")
+    document.querySelectorAll(".tab-button")[0].classList.remove("text-gray-500", "border-transparent")
+  } else {
+    document.getElementById("appealTab").classList.remove("hidden")
+    document.querySelectorAll(".tab-button")[1].classList.add("text-blue-600", "border-blue-600")
+    document.querySelectorAll(".tab-button")[1].classList.remove("text-gray-500", "border-transparent")
+  }
+}
+
+// 보완 요청 모달
+async function showSupplementRequestModal() {
+  const claims = await api.get("/claims?status=심사완료")
+  
+  const modal = document.createElement("div")
+  modal.className = "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+  modal.innerHTML = `
+    <div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div class="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+        <h3 class="text-2xl font-bold text-gray-900">보완 요청 등록</h3>
+        <button onclick="this.closest(".fixed").remove()" class="text-gray-400 hover:text-gray-600">
+          <i class="fas fa-times text-2xl"></i>
+        </button>
+      </div>
+      
+      <form id="supplementRequestForm" class="p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">명세서 *</label>
+          <select name="claim_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <option value="">선택</option>
+            ${claims.data.filter(c => c.status === "심사완료").map(c => `<option value="${c.id}">${c.claim_number} - ${c.patient_name}</option>`).join("")}
+          </select>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">요청 유형 *</label>
+          <select name="request_type" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <option value="보완요청">보완요청</option>
+            <option value="이의신청">이의신청</option>
+          </select>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">요청 사유 *</label>
+          <textarea name="request_reason" required rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="보완 요청 사유를 입력하세요"></textarea>
+        </div>
+        
+        <div class="flex justify-end space-x-3 pt-4 border-t">
+          <button type="button" onclick="this.closest(".fixed").remove()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+            취소
+          </button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
+            등록
+          </button>
+        </div>
+      </form>
+    </div>
+  `
+  
+  document.body.appendChild(modal)
+  
+  document.getElementById("supplementRequestForm").addEventListener("submit", async (e) => {
+    e.preventDefault()
+    const formData = new FormData(e.target)
+    const data = Object.fromEntries(formData)
+    
+    try {
+      await api.post("/post-management/supplement-requests", data)
+      showNotification("보완 요청이 등록되었습니다", "success")
+      modal.remove()
+      renderPostManagement()
+    } catch (error) {
+      console.error("Supplement request error:", error)
+    }
+  })
+}
+
+// 이의신청 모달
+async function showAppealModal() {
+  const claims = await api.get("/claims?status=심사완료")
+  
+  const modal = document.createElement("div")
+  modal.className = "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+  modal.innerHTML = `
+    <div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div class="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+        <h3 class="text-2xl font-bold text-gray-900">이의신청 등록</h3>
+        <button onclick="this.closest(".fixed").remove()" class="text-gray-400 hover:text-gray-600">
+          <i class="fas fa-times text-2xl"></i>
+        </button>
+      </div>
+      
+      <form id="appealForm" class="p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">명세서 *</label>
+          <select name="claim_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <option value="">선택</option>
+            ${claims.data.filter(c => c.status === "심사완료").map(c => `<option value="${c.id}">${c.claim_number} - ${c.patient_name}</option>`).join("")}
+          </select>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">이의 사유 *</label>
+          <textarea name="request_reason" required rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="이의신청 사유를 입력하세요"></textarea>
+        </div>
+        
+        <div class="flex justify-end space-x-3 pt-4 border-t">
+          <button type="button" onclick="this.closest(".fixed").remove()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+            취소
+          </button>
+          <button type="submit" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg">
+            등록
+          </button>
+        </div>
+      </form>
+    </div>
+  `
+  
+  document.body.appendChild(modal)
+  
+  document.getElementById("appealForm").addEventListener("submit", async (e) => {
+    e.preventDefault()
+    const formData = new FormData(e.target)
+    const data = Object.fromEntries(formData)
+    data.request_type = "이의신청"
+    
+    try {
+      await api.post("/post-management/supplement-requests", data)
+      showNotification("이의신청이 등록되었습니다", "success")
+      modal.remove()
+      renderPostManagement()
+    } catch (error) {
+      console.error("Appeal error:", error)
+    }
+  })
+}
+
+// 보완 요청 상세 보기
+async function viewSupplementRequest(id) {
+  try {
+    const response = await api.get(`/post-management/supplement-requests/${id}`)
+    const request = response.data
+    
+    const modal = document.createElement("div")
+    modal.className = "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+    modal.innerHTML = `
+      <div class="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+          <h3 class="text-2xl font-bold text-gray-900">${request.request_type} 상세</h3>
+          <button onclick="this.closest(".fixed").remove()" class="text-gray-400 hover:text-gray-600">
+            <i class="fas fa-times text-2xl"></i>
+          </button>
+        </div>
+        
+        <div class="p-6 space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-sm text-gray-500">청구번호</label>
+              <p class="font-semibold">${request.claim_number}</p>
+            </div>
+            <div>
+              <label class="text-sm text-gray-500">환자명</label>
+              <p class="font-semibold">${request.patient_name}</p>
+            </div>
+            <div>
+              <label class="text-sm text-gray-500">요청 유형</label>
+              <p class="font-semibold">${request.request_type}</p>
+            </div>
+            <div>
+              <label class="text-sm text-gray-500">상태</label>
+              <p><span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(request.status)}">${request.status}</span></p>
+            </div>
+          </div>
+          
+          <div>
+            <label class="text-sm text-gray-500">요청 사유</label>
+            <p class="mt-1 p-3 bg-gray-50 rounded-lg">${request.request_reason}</p>
+          </div>
+          
+          ${request.response_text ? `
+            <div>
+              <label class="text-sm text-gray-500">처리 결과</label>
+              <p class="mt-1 p-3 bg-blue-50 rounded-lg">${request.response_text}</p>
+            </div>
+          ` : ""}
+        </div>
+      </div>
+    `
+    
+    document.body.appendChild(modal)
+  } catch (error) {
+    console.error("View supplement request error:", error)
+  }
+}
+
+// 보완 요청 처리
+async function processSupplementRequest(id) {
+  const status = prompt("처리 상태를 선택하세요:\n1. 처리중\n2. 완료\n3. 거부")
+  if (!status) return
+  
+  const statusMap = { "1": "처리중", "2": "완료", "3": "거부" }
+  const responseText = prompt("처리 결과를 입력하세요:")
+  
+  try {
+    await api.put(`/post-management/supplement-requests/${id}/process`, {
+      status: statusMap[status] || "처리중",
+      response_text: responseText || ""
+    })
+    showNotification("보완 요청이 처리되었습니다", "success")
+    renderPostManagement()
+  } catch (error) {
+    console.error("Process supplement request error:", error)
+  }
 }
 
 // 앱 초기화

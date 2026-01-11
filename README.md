@@ -165,18 +165,22 @@
    - ✅ 상태별 파이 차트
    - ✅ 월별 추세 그래프
 
+### ✅ 새로 추가된 기능 (2026-01-11 추가)
+1. **사후관리**
+   - ✅ 보완 요청 처리 API 및 UI
+   - ✅ 이의신청 관리 API 및 UI
+   - ✅ 보완 요청/이의신청 목록 조회
+   - ✅ 보완 요청/이의신청 등록 모달
+   - ✅ 보완 요청 처리 기능
+
 ### 🚧 미구현 기능 (향후 개발 권장)
 1. **명세서 관리**
    - ⏳ 명세서 일괄 업로드
 
-2. **사후관리**
-   - ⏳ 보완 요청 처리
-   - ⏳ 이의신청 관리
-
-3. **통계 및 리포트**
+2. **통계 및 리포트**
    - ⏳ 리포트 출력 (PDF 등)
 
-5. **사용자 관리**
+3. **사용자 관리**
    - ⏳ 로그인/로그아웃
    - ⏳ 사용자 권한 관리
    - ⏳ 감사 로그
@@ -379,6 +383,13 @@ src/
 - `GET /api/dashboard/reduction-analysis` - 삭감율 분석
 - `GET /api/dashboard/department-stats` - 진료과별 통계
 
+### 사후관리
+- `GET /api/post-management/supplement-requests` - 보완 요청 목록
+- `GET /api/post-management/supplement-requests/:id` - 보완 요청 상세
+- `POST /api/post-management/supplement-requests` - 보완 요청 등록
+- `PUT /api/post-management/supplement-requests/:id/process` - 보완 요청 처리
+- `GET /api/post-management/appeals` - 이의신청 목록
+
 ## 주의사항
 
 ### 데모 시스템 제약사항
@@ -404,6 +415,11 @@ src/
 MIT License
 
 ## 업데이트 내역
+- **2026-01-11**: 사후관리 기능 추가
+  - 보완 요청 처리 API 및 UI 구현
+  - 이의신청 관리 API 및 UI 구현
+  - 보완 요청/이의신청 등록 및 처리 기능
+  - 데이터베이스 마이그레이션 추가 (supplement_requests, appeal_details 테이블)
 - **2026-01-11**: Phase 1 & 2 기능 개발 완료 및 버그 수정
   - 모달 UI 구현 (환자 등록, 명세서 작성, 진료 항목 추가)
   - 데이터 시각화 개선 (Chart.js - 상태별 파이 차트, 월별 추세 그래프)
