@@ -41,4 +41,63 @@ dashboard.get('/stats', async (c) => {
   })
 })
 
+// 월별 청구 통계
+dashboard.get('/monthly-stats', async (c) => {
+  const { DB } = c.env
+  const months = c.req.query('months') || '6'
+  
+  const { results } = await DB.prepare(`
+    SELECT 
+      strftime('%Y-%m', created_at) as month,
+      COUNT(*) as count,
+      SUM(total_amount) as total_amount,
+      SUM(insurance_amount) as insurance_amount,
+      SUM(copay_amount) as copay_amount
+    FROM claims
+    WHERE created_at >= date('now', '-' || ? || ' months')
+    GROUP BY month
+    ORDER BY month
+  `).bind(months).all()
+  
+  return c.json({ success: true, data: results })
+})
+
+// 삭감율 분석
+dashboard.get('/reduction-analysis', async (c) => {
+  const { DB } = c.env
+  
+  const { results } = await DB.prepare(`
+    SELECT 
+      rr.result_type,
+      COUNT(*) as count,
+      AVG(rr.reduction_amount * 100.0 / NULLIF(rr.original_amount, 0)) as avg_reduction_rate,
+      SUM(rr.original_amount) as total_original,
+      SUM(rr.approved_amount) as total_approved,
+      SUM(rr.reduction_amount) as total_reduction
+    FROM review_results rr
+    GROUP BY rr.result_type
+  `).all()
+  
+  return c.json({ success: true, data: results })
+})
+
+// 진료과별 통계
+dashboard.get('/department-stats', async (c) => {
+  const { DB } = c.env
+  
+  const { results } = await DB.prepare(`
+    SELECT 
+      department,
+      COUNT(*) as count,
+      SUM(total_amount) as total_amount,
+      AVG(total_amount) as avg_amount
+    FROM claims
+    WHERE department IS NOT NULL
+    GROUP BY department
+    ORDER BY total_amount DESC
+  `).all()
+  
+  return c.json({ success: true, data: results })
+})
+
 export default dashboard

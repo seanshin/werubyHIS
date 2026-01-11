@@ -331,4 +331,128 @@ claims.get('/:id/review-result', async (c) => {
   return c.json({ success: true, data: result })
 })
 
+// 보완 청구
+claims.post('/:id/supplement', async (c) => {
+  const { DB } = c.env
+  const id = c.req.param('id')
+  const body = await c.req.json()
+  
+  const claim = await DB.prepare(`SELECT * FROM claims WHERE id = ?`).bind(id).first()
+  
+  if (!claim) {
+    return c.json({ success: false, error: '명세서를 찾을 수 없습니다' }, 404)
+  }
+  
+  // 보완 청구 번호 생성
+  const submission_number = generateSubmissionNumber(claim.claim_number as string)
+  
+  // 보완 청구 이력 생성
+  await DB.prepare(`
+    INSERT INTO claim_submissions (claim_id, submission_number, submission_type, submission_date, status, response_data)
+    VALUES (?, ?, '보완', CURRENT_TIMESTAMP, '접수완료', ?)
+  `).bind(
+    id,
+    submission_number,
+    JSON.stringify({
+      message: '보완 청구가 정상 접수되었습니다',
+      supplement_reason: body.reason || '보완 요청 사항 반영'
+    })
+  ).run()
+  
+  // 명세서 상태 업데이트
+  await DB.prepare(`
+    UPDATE claims 
+    SET status = '보완청구', updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).bind(id).run()
+  
+  return c.json({
+    success: true,
+    submission_number,
+    message: '보완 청구가 정상적으로 제출되었습니다'
+  })
+})
+
+// 추가 청구
+claims.post('/:id/additional', async (c) => {
+  const { DB } = c.env
+  const id = c.req.param('id')
+  const body = await c.req.json()
+  
+  const claim = await DB.prepare(`SELECT * FROM claims WHERE id = ?`).bind(id).first()
+  
+  if (!claim) {
+    return c.json({ success: false, error: '명세서를 찾을 수 없습니다' }, 404)
+  }
+  
+  // 추가 청구 번호 생성
+  const submission_number = generateSubmissionNumber(claim.claim_number as string)
+  
+  // 추가 청구 이력 생성
+  await DB.prepare(`
+    INSERT INTO claim_submissions (claim_id, submission_number, submission_type, submission_date, status, response_data)
+    VALUES (?, ?, '추가', CURRENT_TIMESTAMP, '접수완료', ?)
+  `).bind(
+    id,
+    submission_number,
+    JSON.stringify({
+      message: '추가 청구가 정상 접수되었습니다',
+      additional_amount: body.additional_amount || 0
+    })
+  ).run()
+  
+  // 명세서 상태 업데이트
+  await DB.prepare(`
+    UPDATE claims 
+    SET status = '추가청구', updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).bind(id).run()
+  
+  return c.json({
+    success: true,
+    submission_number,
+    message: '추가 청구가 정상적으로 제출되었습니다'
+  })
+})
+
+// 청구 취소
+claims.post('/:id/cancel', async (c) => {
+  const { DB } = c.env
+  const id = c.req.param('id')
+  const body = await c.req.json()
+  
+  const claim = await DB.prepare(`SELECT * FROM claims WHERE id = ?`).bind(id).first()
+  
+  if (!claim) {
+    return c.json({ success: false, error: '명세서를 찾을 수 없습니다' }, 404)
+  }
+  
+  // 청구 취소 이력 생성
+  const submission_number = generateSubmissionNumber(claim.claim_number as string)
+  
+  await DB.prepare(`
+    INSERT INTO claim_submissions (claim_id, submission_number, submission_type, submission_date, status, response_data)
+    VALUES (?, ?, '취소', CURRENT_TIMESTAMP, '취소완료', ?)
+  `).bind(
+    id,
+    submission_number,
+    JSON.stringify({
+      message: '청구가 취소되었습니다',
+      cancel_reason: body.reason || '사용자 요청'
+    })
+  ).run()
+  
+  // 명세서 상태 업데이트
+  await DB.prepare(`
+    UPDATE claims 
+    SET status = '청구취소', updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).bind(id).run()
+  
+  return c.json({
+    success: true,
+    message: '청구가 취소되었습니다'
+  })
+})
+
 export default claims

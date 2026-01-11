@@ -224,10 +224,30 @@ async function renderDashboard() {
           </div>
         </div>
 
+        <!-- 차트 섹션 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">명세서 상태별 분포</h3>
+            <div style="height: 300px; position: relative;">
+              <canvas id="statusChart"></canvas>
+            </div>
+          </div>
+          <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">월별 청구 추이</h3>
+            <div style="height: 300px; position: relative;">
+              <canvas id="monthlyChart"></canvas>
+            </div>
+          </div>
+        </div>
+
         <!-- 최근 청구 목록 -->
         <div class="bg-white rounded-lg shadow">
-          <div class="px-6 py-4 border-b border-gray-200">
+          <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
             <h3 class="text-lg font-semibold text-gray-900">최근 청구 내역</h3>
+            <button onclick="exportClaimsToExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm flex items-center">
+              <i class="fas fa-file-excel mr-2"></i>
+              엑셀 다운로드
+            </button>
           </div>
           <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
@@ -262,9 +282,218 @@ async function renderDashboard() {
         </div>
       </div>
     `
+    
+    // 차트 초기화 후 렌더링
+    resetCharts()
+    setTimeout(() => renderCharts(), 100)
   } catch (error) {
     console.error('Dashboard render error:', error)
   }
+}
+
+// 차트 인스턴스 저장
+let statusChartInstance = null
+let monthlyChartInstance = null
+let chartsRendered = false
+let chartRenderTimeout = null
+
+// 차트 렌더링
+async function renderCharts() {
+  // 이미 렌더링 중이거나 완료된 경우 중복 실행 방지
+  if (chartsRendered) {
+    return
+  }
+  
+  // 기존 타이머 취소
+  if (chartRenderTimeout) {
+    clearTimeout(chartRenderTimeout)
+    chartRenderTimeout = null
+  }
+  
+  try {
+    // Chart.js가 로드되었는지 확인
+    if (typeof Chart === 'undefined') {
+      console.warn('Chart.js가 아직 로드되지 않았습니다. 잠시 후 다시 시도합니다.')
+      chartRenderTimeout = setTimeout(() => renderCharts(), 200)
+      return
+    }
+    
+    // 상태별 파이 차트
+    const stats = state.stats
+    if (stats && stats.claims_by_status) {
+      const statusData = stats.claims_by_status
+      const ctx1 = document.getElementById('statusChart')
+      if (ctx1 && !statusChartInstance) {
+        statusChartInstance = new Chart(ctx1, {
+          type: 'doughnut',
+          data: {
+            labels: statusData.map(s => s.status),
+            datasets: [{
+              data: statusData.map(s => s.count),
+              backgroundColor: [
+                'rgba(59, 130, 246, 0.8)',
+                'rgba(16, 185, 129, 0.8)',
+                'rgba(251, 191, 36, 0.8)',
+                'rgba(139, 92, 246, 0.8)',
+                'rgba(236, 72, 153, 0.8)',
+                'rgba(239, 68, 68, 0.8)'
+              ]
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            aspectRatio: 1.5,
+            plugins: {
+              legend: {
+                position: 'bottom'
+              }
+            },
+            animation: {
+              duration: 0 // 애니메이션 비활성화로 크기 변화 방지
+            }
+          }
+        })
+      }
+    }
+    
+    // 월별 추세 그래프
+    try {
+      const monthlyData = await api.get('/dashboard/monthly-stats?months=6')
+      if (monthlyData.success && monthlyData.data && monthlyData.data.length > 0) {
+        const ctx2 = document.getElementById('monthlyChart')
+        if (ctx2 && !monthlyChartInstance) {
+          monthlyChartInstance = new Chart(ctx2, {
+            type: 'line',
+            data: {
+              labels: monthlyData.data.map(d => d.month),
+              datasets: [{
+                label: '청구액',
+                data: monthlyData.data.map(d => d.total_amount || 0),
+                borderColor: 'rgba(59, 130, 246, 1)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.4,
+                fill: true
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              aspectRatio: 1.5,
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: {
+                    callback: function(value) {
+                      return (value / 1000).toFixed(0) + 'K'
+                    }
+                  }
+                }
+              },
+              plugins: {
+                legend: {
+                  display: true
+                }
+              },
+              animation: {
+                duration: 0 // 애니메이션 비활성화로 크기 변화 방지
+              }
+            }
+          })
+        }
+      } else {
+        // 데이터가 없을 때 메시지 표시
+        const ctx2 = document.getElementById('monthlyChart')
+        if (ctx2 && !monthlyChartInstance) {
+          const parent = ctx2.parentElement
+          if (parent) {
+            parent.innerHTML = `
+              <h3 class="text-lg font-semibold text-gray-900 mb-4">월별 청구 추이</h3>
+              <div class="flex items-center justify-center" style="height: 300px;">
+                <p class="text-gray-500">데이터가 없습니다</p>
+              </div>
+            `
+          }
+        }
+      }
+    } catch (monthlyError) {
+      console.error('Monthly stats error:', monthlyError)
+      // 오류 발생 시 메시지 표시
+      const ctx2 = document.getElementById('monthlyChart')
+      if (ctx2 && !monthlyChartInstance) {
+        const parent = ctx2.parentElement
+        if (parent) {
+          parent.innerHTML = `
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">월별 청구 추이</h3>
+            <div class="flex items-center justify-center" style="height: 300px;">
+              <p class="text-gray-500">차트를 불러올 수 없습니다</p>
+            </div>
+          `
+        }
+      }
+    }
+    
+    chartsRendered = true
+  } catch (error) {
+    console.error('Chart render error:', error)
+  }
+}
+
+// 대시보드 렌더링 시 차트 초기화
+function resetCharts() {
+  if (statusChartInstance) {
+    statusChartInstance.destroy()
+    statusChartInstance = null
+  }
+  if (monthlyChartInstance) {
+    monthlyChartInstance.destroy()
+    monthlyChartInstance = null
+  }
+  chartsRendered = false
+  if (chartRenderTimeout) {
+    clearTimeout(chartRenderTimeout)
+    chartRenderTimeout = null
+  }
+}
+
+// 엑셀 다운로드
+function exportClaimsToExcel() {
+  const claims = state.claims || []
+  if (claims.length === 0) {
+    showNotification('다운로드할 데이터가 없습니다', 'warning')
+    return
+  }
+  
+  // CSV 형식으로 변환
+  const headers = ['청구번호', '환자명', '진료일', '진단명', '청구액', '상태']
+  const rows = claims.map(claim => [
+    claim.claim_number,
+    claim.patient_name,
+    formatDate(claim.visit_date),
+    claim.diagnosis_name,
+    claim.total_amount || 0,
+    claim.status
+  ])
+  
+  const csv = [
+    headers.join(','),
+    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+  ].join('\n')
+  
+  // BOM 추가 (한글 깨짐 방지)
+  const BOM = '\uFEFF'
+  const blob = new Blob([BOM + csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  const url = URL.createObjectURL(blob)
+  
+  link.setAttribute('href', url)
+  link.setAttribute('download', `명세서_${new Date().toISOString().slice(0, 10)}.csv`)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  
+  showNotification('엑셀 파일이 다운로드되었습니다', 'success')
 }
 
 // 환자 목록 렌더링
@@ -1074,6 +1303,262 @@ async function renderAdmissions() {
       </div>
     `
   }
+}
+
+// 환자 등록 모달
+async function showAddPatientModal() {
+  const modal = document.createElement('div')
+  modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'
+  modal.innerHTML = `
+    <div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div class="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+        <h3 class="text-2xl font-bold text-gray-900">환자 등록</h3>
+        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+          <i class="fas fa-times text-2xl"></i>
+        </button>
+      </div>
+      
+      <form id="patientForm" class="p-6 space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">환자번호 *</label>
+            <input type="text" name="patient_number" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">이름 *</label>
+            <input type="text" name="name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">생년월일 *</label>
+            <input type="date" name="birth_date" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">성별 *</label>
+            <select name="gender" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              <option value="">선택</option>
+              <option value="M">남성</option>
+              <option value="F">여성</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">보험유형 *</label>
+            <select name="insurance_type" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              <option value="">선택</option>
+              <option value="건강보험">건강보험</option>
+              <option value="의료급여">의료급여</option>
+              <option value="기타">기타</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">보험번호</label>
+            <input type="text" name="insurance_number" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">연락처</label>
+            <input type="tel" name="phone" placeholder="010-1234-5678" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">주소</label>
+            <input type="text" name="address" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+        </div>
+        
+        <div class="flex justify-end space-x-3 pt-4 border-t">
+          <button type="button" onclick="this.closest('.fixed').remove()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+            취소
+          </button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
+            등록
+          </button>
+        </div>
+      </form>
+    </div>
+  `
+  
+  document.body.appendChild(modal)
+  
+  document.getElementById('patientForm').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const formData = new FormData(e.target)
+    const data = Object.fromEntries(formData)
+    
+    try {
+      await api.post('/patients', data)
+      showNotification('환자가 등록되었습니다', 'success')
+      modal.remove()
+      renderPatients()
+    } catch (error) {
+      console.error('Patient registration error:', error)
+    }
+  })
+}
+
+// 명세서 작성 모달
+async function showCreateClaimModal() {
+  const patients = await api.get('/patients')
+  
+  const modal = document.createElement('div')
+  modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'
+  modal.innerHTML = `
+    <div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div class="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+        <h3 class="text-2xl font-bold text-gray-900">명세서 작성</h3>
+        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+          <i class="fas fa-times text-2xl"></i>
+        </button>
+      </div>
+      
+      <form id="claimForm" class="p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">환자 *</label>
+          <select name="patient_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <option value="">선택</option>
+            ${patients.data.map(p => `<option value="${p.id}">${p.patient_number} - ${p.name}</option>`).join('')}
+          </select>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">진료일 *</label>
+            <input type="date" name="visit_date" required value="${new Date().toISOString().slice(0, 10)}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">진료과 *</label>
+            <input type="text" name="department" required placeholder="내과" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">진단코드 *</label>
+            <input type="text" name="diagnosis_code" required placeholder="A00.0" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">진단명 *</label>
+            <input type="text" name="diagnosis_name" required placeholder="감기" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">담당의 *</label>
+            <input type="text" name="doctor_name" required placeholder="홍길동" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">비고</label>
+          <textarea name="notes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+        </div>
+        
+        <div class="flex justify-end space-x-3 pt-4 border-t">
+          <button type="button" onclick="this.closest('.fixed').remove()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+            취소
+          </button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
+            작성
+          </button>
+        </div>
+      </form>
+    </div>
+  `
+  
+  document.body.appendChild(modal)
+  
+  document.getElementById('claimForm').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const formData = new FormData(e.target)
+    const data = Object.fromEntries(formData)
+    
+    try {
+      const result = await api.post('/claims', data)
+      showNotification('명세서가 작성되었습니다', 'success')
+      modal.remove()
+      renderClaims()
+    } catch (error) {
+      console.error('Claim creation error:', error)
+    }
+  })
+}
+
+// 진료 항목 추가 모달
+async function showAddItemModal(claimId) {
+  const modal = document.createElement('div')
+  modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4'
+  modal.innerHTML = `
+    <div class="bg-white rounded-lg max-w-2xl w-full">
+      <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+        <h3 class="text-2xl font-bold text-gray-900">진료 항목 추가</h3>
+        <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+          <i class="fas fa-times text-2xl"></i>
+        </button>
+      </div>
+      
+      <form id="itemForm" class="p-6 space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">항목코드 *</label>
+            <input type="text" name="item_code" required placeholder="A001" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">항목명 *</label>
+            <input type="text" name="item_name" required placeholder="일반진찰" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">구분 *</label>
+            <select name="item_type" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              <option value="">선택</option>
+              <option value="진찰료">진찰료</option>
+              <option value="처방">처방</option>
+              <option value="검사">검사</option>
+              <option value="치료">치료</option>
+              <option value="기타">기타</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">단가 *</label>
+            <input type="number" name="unit_price" required min="0" step="100" placeholder="10000" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">수량</label>
+            <input type="number" name="quantity" min="1" value="1" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">급여율 (%)</label>
+            <input type="number" name="insurance_coverage" min="0" max="100" value="70" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+        </div>
+        
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">비고</label>
+          <textarea name="notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+        </div>
+        
+        <div class="flex justify-end space-x-3 pt-4 border-t">
+          <button type="button" onclick="this.closest('.fixed').remove()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+            취소
+          </button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
+            추가
+          </button>
+        </div>
+      </form>
+    </div>
+  `
+  
+  document.body.appendChild(modal)
+  
+  document.getElementById('itemForm').addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const formData = new FormData(e.target)
+    const data = Object.fromEntries(formData)
+    data.unit_price = parseInt(data.unit_price)
+    data.quantity = parseInt(data.quantity) || 1
+    data.insurance_coverage = parseInt(data.insurance_coverage) || 70
+    
+    try {
+      await api.post(`/claims/${claimId}/items`, data)
+      showNotification('진료 항목이 추가되었습니다', 'success')
+      modal.remove()
+      viewClaimDetail(claimId)
+    } catch (error) {
+      console.error('Item addition error:', error)
+    }
+  })
 }
 
 // 앱 초기화

@@ -140,28 +140,41 @@
    - ✅ 최근 청구 내역
    - ✅ 상태별 명세서 현황
 
-### 🚧 미구현 기능 (향후 개발 권장)
+### ✅ 새로 추가된 기능 (2026-01-11)
 1. **명세서 관리**
-   - ⏳ 환자 등록 모달 UI
-   - ⏳ 명세서 작성 모달 UI
-   - ⏳ 진료 항목 추가 모달 UI
-   - ⏳ 명세서 엑셀 다운로드
+   - ✅ 환자 등록 모달 UI
+   - ✅ 명세서 작성 모달 UI
+   - ✅ 진료 항목 추가 모달 UI
+   - ✅ 명세서 엑셀 다운로드 (CSV 형식)
    - ⏳ 명세서 일괄 업로드
 
 2. **청구 기능**
-   - ⏳ 보완 청구 기능
-   - ⏳ 추가 청구 기능
-   - ⏳ 청구 취소 기능
+   - ✅ 보완 청구 기능
+   - ✅ 추가 청구 기능
+   - ✅ 청구 취소 기능
 
 3. **사후관리**
    - ⏳ 보완 요청 처리
    - ⏳ 이의신청 관리
 
 4. **통계 및 리포트**
-   - ⏳ 월별 청구 통계
-   - ⏳ 삭감율 분석
-   - ⏳ 진료과별 통계
-   - ⏳ 리포트 출력
+   - ✅ 월별 청구 통계 API
+   - ✅ 삭감율 분석 API
+   - ✅ 진료과별 통계 API
+   - ✅ 대시보드 차트 시각화 (Chart.js)
+   - ✅ 상태별 파이 차트
+   - ✅ 월별 추세 그래프
+
+### 🚧 미구현 기능 (향후 개발 권장)
+1. **명세서 관리**
+   - ⏳ 명세서 일괄 업로드
+
+2. **사후관리**
+   - ⏳ 보완 요청 처리
+   - ⏳ 이의신청 관리
+
+3. **통계 및 리포트**
+   - ⏳ 리포트 출력 (PDF 등)
 
 5. **사용자 관리**
    - ⏳ 로그인/로그아웃
@@ -288,6 +301,7 @@ src/
 - **Tailwind CSS**: 유틸리티 기반 CSS 프레임워크
 - **Font Awesome**: 아이콘
 - **Axios**: HTTP 클라이언트
+- **Chart.js**: 데이터 시각화 라이브러리
 
 ### 개발 도구
 - **Vite**: 빌드 도구
@@ -336,7 +350,14 @@ src/
 ### 청구 기능
 - `POST /api/claims/:id/precheck` - 사전점검
 - `POST /api/claims/:id/submit` - 청구 제출
+- `POST /api/claims/:id/supplement` - 보완 청구
+- `POST /api/claims/:id/additional` - 추가 청구
+- `POST /api/claims/:id/cancel` - 청구 취소
 - `GET /api/claims/:id/submissions` - 청구 이력
+
+### 진료 항목
+- `POST /api/claims/:id/items` - 진료 항목 추가
+- `DELETE /api/claims/:claim_id/items/:item_id` - 진료 항목 삭제
 
 ### 외부기관 연계
 - `POST /api/integrations/eligibility` - 자격조회
@@ -354,6 +375,9 @@ src/
 
 ### 대시보드
 - `GET /api/dashboard/stats` - 통계 데이터
+- `GET /api/dashboard/monthly-stats` - 월별 청구 통계
+- `GET /api/dashboard/reduction-analysis` - 삭감율 분석
+- `GET /api/dashboard/department-stats` - 진료과별 통계
 
 ## 주의사항
 
@@ -380,6 +404,15 @@ src/
 MIT License
 
 ## 업데이트 내역
+- **2026-01-11**: Phase 1 & 2 기능 개발 완료 및 버그 수정
+  - 모달 UI 구현 (환자 등록, 명세서 작성, 진료 항목 추가)
+  - 데이터 시각화 개선 (Chart.js - 상태별 파이 차트, 월별 추세 그래프)
+  - 보완/추가/취소 청구 기능 API 구현
+  - 통계 API 확장 (월별, 삭감율, 진료과별)
+  - 엑셀 다운로드 기능 (CSV 형식)
+  - 대시보드 차트 크기 고정 및 중복 렌더링 방지
+  - Chart.js 로드 타이밍 문제 해결
+  - 차트 인스턴스 관리 개선
 - **2026-01-09**: 프로젝트 구조 개선 및 코드 리팩토링
   - API 라우트를 기능별 모듈로 분리 (patients, claims, integrations, payments, dashboard)
   - 유틸리티 함수 분리 (claimUtils.ts)
