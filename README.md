@@ -252,6 +252,29 @@ npx wrangler pages project create webapp --production-branch main
 npm run deploy:prod
 ```
 
+## 프로젝트 구조
+
+```
+src/
+├── index.tsx              # 메인 앱 및 라우터 통합
+├── routes/                # 기능별 API 라우트
+│   ├── patients.ts        # 환자 관리 API
+│   ├── claims.ts          # 명세서 관리 API
+│   ├── integrations.ts    # 외부기관 연계 API
+│   ├── payments.ts        # 입금 관리 API
+│   └── dashboard.ts       # 대시보드 통계 API
+├── utils/                 # 유틸리티 함수
+│   └── claimUtils.ts      # 명세서 관련 유틸리티
+└── types/                 # 타입 정의
+    └── bindings.ts        # Cloudflare Workers 타입 정의
+```
+
+### 구조 개선 사항
+- **모듈화**: API 라우트를 기능별로 분리하여 유지보수성 향상
+- **재사용성**: 공통 유틸리티 함수를 별도 모듈로 분리
+- **타입 안전성**: 타입 정의를 중앙화하여 관리 용이
+- **확장성**: 새로운 기능 추가 시 해당 모듈만 수정하면 됨
+
 ## 기술 스택
 
 ### 백엔드
@@ -357,15 +380,18 @@ npm run deploy:prod
 MIT License
 
 ## 업데이트 내역
+- **2026-01-09**: 프로젝트 구조 개선 및 코드 리팩토링
+  - API 라우트를 기능별 모듈로 분리 (patients, claims, integrations, payments, dashboard)
+  - 유틸리티 함수 분리 (claimUtils.ts)
+  - 타입 정의 중앙화 (types/bindings.ts)
+  - 사용하지 않는 renderer.tsx 파일 제거
+  - src/index.tsx를 간결한 라우터 통합 파일로 리팩토링 (663줄 → 50줄)
+  - 코드 가독성 및 유지보수성 향상
 - **2026-01-09**: 원무업무 통합 페이지 추가
   - 오늘 접수/수납 통계
   - 대기 환자 목록
   - 빠른 작업 버튼
   - 오늘 수납 내역
-- **2026-01-09**: 프로젝트 구조 개선
-  - API 라우트를 기능별 모듈로 분리
-  - 유틸리티 함수 분리
-  - 코드 구조화 및 정리
 
 ## 마지막 업데이트
 2026-01-09
